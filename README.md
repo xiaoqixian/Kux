@@ -1,11 +1,22 @@
 
-### **Kux**
+## **Kux**
 ---
-#### Kux is a multi-threads dowoloader
+### **Kux is a multi-threads dowoloader**
 
-main modules of this project
+#### **Run**
+Make sure you already have installed gcc/g++ compiler. So you are ale to compile source files by gcc command, don't forget to link pthread lib. If make or cmake tools are installed on your machine, compile source files with them would be much easier.
 
-1. parse url
+1. clone this project
+
+2. `mkdir build && cd build`
+
+3. for cmake users, `cmake ..`
+
+4. `make all`
+
+#### Main modules of this project
+
+1. parse url. Parse a http url given by the user, so the downloader can build a request with it. Query string '?'and frament '#' are both not supported.
 
 2. open url and build connection
 
