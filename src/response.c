@@ -5,6 +5,7 @@
  */
 
 #include "download.h"
+#include "response.h"
 
 int parse_response(conn_t conn, const char* file_url, response_t* resp) {
     if (!conn.avaliable) {

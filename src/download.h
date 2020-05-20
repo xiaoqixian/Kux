@@ -8,12 +8,21 @@
 #ifndef DOWNLOAD_H
 #define DOWNLOAD_H
 
-typedef struct attr_s {
-    int start;
-    int limit;
-    int num;
-} attr_t;
+#include <pthread.h>
+#include <stdio.h>
+#define MAX_RECV_SIZE 1024
 
-int download_one_thread()
+typedef struct thread_info_s {
+    int start;
+    unsigned long limit;
+    int num; //thread serial number
+    char* url;
+    pthread_mutex_t* mutex_lock;
+    FILE* fw;
+} thread_info_t;
+
+void* download_range(void* arg);
+
+void info_free(thread_info_t** infos, const int thread_num);
 
 #endif
