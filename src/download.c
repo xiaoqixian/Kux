@@ -11,7 +11,7 @@
 #include "conn.h"
 #include "request.h"
 
-void* download_range(void* arg) {
+void* download_range1(void* arg) {
     DEBUG("running download range");
     thread_info_t* thread_info = (thread_info_t*)arg;
     char buffer[MAX_RECV_SIZE] = {0};

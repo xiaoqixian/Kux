@@ -15,8 +15,8 @@
 #include "parse.h"
 #include "conn.h"
 #include "request.h"
-#include "download.h"
 #include "response.h"
+#include "download.h"
 
 #define KUX_VERSION "1.0"
 #define PROJECT_NAME "KUX"
@@ -41,6 +41,84 @@ static void usage() {
             "   -w|--path specify the file storage path, optioal, default current path\n"
             "   -r|--resource resource url, required\n"
            );
+}
+
+void* download_range(void* arg);
+
+void* download_range(void* arg) {
+    DEBUG("running download range");
+    thread_info_t* thread_info = (thread_info_t*)arg;
+    char buffer[MAX_RECV_SIZE] = {0};
+    ssize_t size, write_size;
+    size_t downloaded = 0;
+    char* body = NULL;
+    
+    conn_t conn = build_conn(thread_info->url);
+    if (!conn.avaliable) {
+        LOG_ERR("thread %d build connection failed\n", thread_info->num);
+        return NULL;
+    }
+    
+send_again:
+    ASSERT(send_request_range(conn, thread_info) != -1, "send request range error");
+    DEBUG("send request range");
+    
+    size = recv(conn.sock, buffer, sizeof(buffer), 0);
+    DEBUG("download recv size:%zd", size);
+    
+    if (strstr(buffer, "HTTP/1.1 206") == NULL && strstr(buffer, "HTTP/1.0 206") == NULL && strstr(buffer, "HTTP/1.1 200") == NULL && strstr(buffer, "HTTP/1.0 200") == NULL) {
+        sleep(2);
+        memset(buffer, 0, sizeof(buffer));
+        conn = build_conn(thread_info->url);
+        goto send_again;
+    }
+    DEBUG("recv buffer: %s\n", buffer);
+    
+    body = strstr(buffer, "\r\n\r\n") + 4;
+    if (body != NULL) {
+        size -= (body - buffer);
+        pthread_mutex_lock(thread_info->mutex_lock);
+        fseek(thread_info->fw, thread_info->start, SEEK_SET);
+        write_size = fwrite(body, sizeof(char), size, thread_info->fw);
+        ASSERT(write_size == size, "fwrite error");
+        DEBUG("thread %d write size %zd", thread_info->num, write_size);
+        fflush(thread_info->fw);
+        pthread_mutex_unlock(thread_info->mutex_lock);
+        downloaded += size;
+        thread_info->start += size;
+        
+        while (downloaded < thread_info->limit) {
+            memset(buffer, 0, sizeof(buffer));
+            size = recv(conn.sock, buffer, sizeof(buffer), 0);
+            if (size == 0) {
+                conn.avaliable = 0;
+                while (!conn.avaliable) {
+                    sleep(2);
+                    conn = build_conn(thread_info->url);
+                }
+                goto send_again;
+            }
+            
+            pthread_mutex_lock(thread_info->mutex_lock);
+            fseek(thread_info->fw, thread_info->start, SEEK_SET);
+            write_size = fwrite(buffer, sizeof(char), size, thread_info->fw);
+            ASSERT(write_size == size, "fwrite error");
+            DEBUG("thread %d write size %zd", thread_info->num, write_size);
+            fflush(thread_info->fw);
+            pthread_mutex_unlock(thread_info->mutex_lock);
+            downloaded += size;
+            thread_info->start += size;
+        }
+        DEBUG("thread %d total download %zd", thread_info->num, downloaded);
+        //fclose(thread_info->fw);
+        close(conn.sock);
+    }
+    pthread_exit(NULL);
+}
+
+void* func(void* arg) {
+    printf("fuck!\n");
+    pthread_exit(NULL);
 }
 
 int main(int argc, char* argv[]) {
@@ -120,7 +198,9 @@ int main(int argc, char* argv[]) {
     pthread_mutex_init(&mutex_lock, NULL);
     for (res = 0; res < thread_num; res++) {
         infos[res] = (thread_info_t*)malloc(sizeof(thread_info_t));
+        ASSERT_EXIT(infos[res] != NULL, "malloc error");
         memset(infos[res], 0, sizeof(thread_info_t));
+
         infos[res]->num = res;
         infos[res]->mutex_lock = &mutex_lock;
         infos[res]->fw = fw;
@@ -134,11 +214,15 @@ int main(int argc, char* argv[]) {
         }
         
         pthread_create(&threads[res], NULL, download_range, (void*)infos[res]);
+        //download_range((void*)infos[res]);
         LOG_INFO("thread %d start. start position:%d, limit:%lu", infos[res]->num, infos[res]->start, infos[res]->limit);
     }
-    fclose(fw);
     pthread_mutex_destroy(&mutex_lock);
+    for (res = 0; res < thread_num; res++) {
+        pthread_join(threads[res], NULL);
+    }
     info_free(infos, thread_num);
+    fclose(fw);
     LOG_INFO("download completes");
 
     return 0;

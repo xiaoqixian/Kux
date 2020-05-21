@@ -21,7 +21,7 @@ typedef struct thread_info_s {
     FILE* fw;
 } thread_info_t;
 
-void* download_range(void* arg);
+//void* download_range(void* arg);
 
 void info_free(thread_info_t** infos, const int thread_num);
 
