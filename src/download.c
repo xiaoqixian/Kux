@@ -11,7 +11,7 @@
 #include "conn.h"
 #include "request.h"
 
-void* download_range1(void* arg) {
+void* download_range(void* arg) {
     DEBUG("running download range");
     thread_info_t* thread_info = (thread_info_t*)arg;
     char buffer[MAX_RECV_SIZE] = {0};
@@ -43,11 +43,16 @@ send_again:
     body = strstr(buffer, "\r\n\r\n") + 4;
     if (body != NULL) {
         size -= (body - buffer);
+
+        pthread_mutex_lock(thread_info->mutex_lock);
         fseek(thread_info->fw, thread_info->start, SEEK_SET);
         write_size = fwrite(body, sizeof(char), size, thread_info->fw);
         ASSERT(write_size == size, "fwrite error");
         fflush(thread_info->fw);
+        pthread_mutex_unlock(thread_info->mutex_lock);
+
         downloaded += size;
+        thread_info->start += size;
         
         while (downloaded < thread_info->limit) {
             memset(buffer, 0, sizeof(buffer));
@@ -58,17 +63,21 @@ send_again:
                     sleep(2);
                     conn = build_conn(thread_info->url);
                 }
-                thread_info->start += downloaded;
                 goto send_again;
             }
             
+            pthread_mutex_lock(thread_info->mutex_lock);
+            fseek(thread_info->fw, thread_info->start, SEEK_SET);
             write_size = fwrite(buffer, sizeof(char), size, thread_info->fw);
             ASSERT(write_size == size, "fwrite error");
             fflush(thread_info->fw);
+            pthread_mutex_unlock(thread_info->mutex_lock);
+
             downloaded += size;
+            thread_info->start += size;
         }
-        fclose(thread_info->fw);
         close(conn.sock);
+        DEBUG("thread %d total downloaded %zd", thread_info->num, downloaded);
     }
     pthread_exit(NULL);
 }

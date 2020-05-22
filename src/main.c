@@ -43,7 +43,7 @@ static void usage() {
            );
 }
 
-void* download_range(void* arg);
+/*void* download_range(void* arg);
 
 void* download_range(void* arg) {
     DEBUG("running download range");
@@ -119,7 +119,7 @@ send_again:
 void* func(void* arg) {
     printf("fuck!\n");
     pthread_exit(NULL);
-}
+}*/
 
 int main(int argc, char* argv[]) {
     if (argc == 1) {
